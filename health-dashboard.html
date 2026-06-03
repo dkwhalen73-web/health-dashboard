@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Danny's Health Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#f5f6f8;--card:#fff;--ink:#1c1f24;--muted:#6b7280;
+  --line:#e5e7eb;--accent:#2563eb;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;
+  --good-bg:#e7f6ec;--warn-bg:#fdf3e3;--bad-bg:#fbeaea;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:800px;margin:0 auto;padding:16px 14px 60px}
+header{margin-bottom:16px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.3px}
+.sub{color:var(--muted);font-size:13px;margin-top:3px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.section-title{font-size:14px;font-weight:700;margin:22px 0 10px;letter-spacing:-.2px}
+
+/* Setup banner */
+.setup-banner{background:#eef3ff;border:1px solid #d6e0ff;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#1e40af}
+.setup-banner summary{cursor:pointer;font-weight:700;font-size:14px;list-style:none;display:flex;align-items:center;gap:6px}
+.setup-banner summary::-webkit-details-marker{display:none}
+.setup-banner ol{margin:12px 0 0 18px;line-height:2}
+.setup-banner code{background:#dbeafe;padding:2px 6px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.url-input{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.url-input input{flex:1;min-width:200px;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;font-size:13px;color:var(--ink)}
+.url-input button{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer;white-space:nowrap}
+
+/* Status bar */
+.status-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.status-msg{font-size:13px;color:var(--muted)}
+.refresh-btn{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)}
+.refresh-btn:hover{background:#f0f0f0}
+
+/* Time range tabs */
+.range-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.range-tab{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s}
+.range-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+@media(min-width:600px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.kpi-value{font-size:26px;font-weight:700;margin:5px 0 3px;letter-spacing:-.5px}
+.kpi-value .unit{font-size:13px;font-weight:500;color:var(--muted)}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
+.pill.good{background:var(--good-bg);color:var(--good)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
+
+/* Charts */
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 14px 10px;margin-bottom:12px}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;flex-wrap:wrap;gap:4px}
+.chart-head h3{font-size:14px;font-weight:600}
+.chart-head span{font-size:12px;color:var(--muted)}
+.chart-box{position:relative;height:180px}
+.chart-box.sm{height:150px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:480px){.two-col{grid-template-columns:1fr}}
+
+/* Detailed stats table */
+.stats-table{width:100%;border-collapse:collapse;font-size:13px}
+.stats-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--line)}
+.stats-table td{padding:7px 8px;border-bottom:1px solid var(--line)}
+.stats-table tr:last-child td{border-bottom:none}
+.stats-table tr:hover td{background:#fafafa}
+.flag-bad{color:var(--bad);font-weight:600}
+.flag-warn{color:var(--warn);font-weight:600}
+.flag-good{color:var(--good);font-weight:600}
+
+/* Footer */
+.note{font-size:12px;color:var(--muted);margin-top:20px;text-align:center;line-height:1.7}
+
+/* Loading / error */
+.loading{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+.error-card{background:#fbeaea;border:1px solid #fca5a5;border-radius:12px;padding:16px;color:#991b1b;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Health Dashboard</h1>
+    <div class="sub">52M · Bentonville AR · Lisinopril 20mg · <span id="headerRange">—</span></div>
+  </header>
+
+  <!-- SETUP INSTRUCTIONS -->
+  <details class="setup-banner" id="setupSection">
+    <summary>⚙️ First-time setup — connect your Google Sheet</summary>
+    <ol>
+      <li>Open your <b>Health-Dashboard-Danny</b> Google Sheet</li>
+      <li>Click <b>Share</b> (top-right button) → under <i>General access</i>, choose <b>Anyone with the link</b> → set to <b>Viewer</b> → click <b>Done</b></li>
+      <li>Copy the URL from your browser's address bar (the normal sheet URL is fine)</li>
+      <li>Paste it in the box below and click <b>Save &amp; Load</b></li>
+    </ol>
+    <p style="margin-top:10px;color:#1e3a8a;font-size:12px">
+      ⚠️ "Anyone with the link" means <b>readable</b> by anyone who has the URL — not editable, and not searchable on Google. Your data stays yours.<br>
+      <b>Fallback:</b> if loading fails, try <b>File → Share → Publish to web → Weekly Log → CSV</b> and paste that URL instead.
+    </p>
+    <div class="url-input">
+      <input type="url" id="sheetUrlInput" placeholder="Paste your Google Sheet URL (or published CSV URL)…">
+      <button id="saveSheetBtn">Save &amp; Load</button>
+    </div>
+    <div id="setupMsg" style="margin-top:8px;font-size:12px"></div>
+  </details>
+
+  <!-- STATUS -->
+  <div class="status-bar">
+    <span class="status-msg" id="statusMsg">No sheet connected yet.</span>
+    <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
+  </div>
+
+  <!-- ERROR -->
+  <div id="errorCard" class="error-card" style="display:none"></div>
+
+  <!-- MAIN CONTENT (hidden until data loads) -->
+  <div id="mainContent" style="display:none">
+
+    <!-- TIME RANGE TABS -->
+    <div class="range-tabs">
+      <button class="range-tab active" data-range="7">7 days</button>
+      <button class="range-tab" data-range="30">30 days</button>
+      <button class="range-tab" data-range="90">90 days</button>
+      <button class="range-tab" data-range="0">All time</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- BP CHART -->
+    <div class="chart-card">
+      <div class="chart-head"><h3>Blood Pressure</h3><span>Target ≤ 125 / 85 mmHg</span></div>
+      <div class="chart-box"><canvas id="bpChart"></canvas></div>
+    </div>
+
+    <!-- WEIGHT + BODY FAT -->
+    <div class="chart-card">
+      <div class="chart-head"><h3>Weight &amp; Body Fat</h3><span>Goal &lt;20% body fat · waist &lt;31"</span></div>
+      <div class="chart-box"><canvas id="wtChart"></canvas></div>
+    </div>
+
+    <!-- HR + SLEEP -->
+    <div class="two-col">
+      <div class="chart-card" style="margin:0">
+        <div class="chart-head"><h3>Resting HR</h3><span>bpm · flag &gt;65</span></div>
+        <div class="chart-box sm"><canvas id="hrChart"></canvas></div>
+      </div>
+      <div class="chart-card" style="margin:0">
+        <div class="chart-head"><h3>Sleep</h3><span>hrs · amber &lt;7</span></div>
+        <div class="chart-box sm"><canvas id="sleepChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- STEPS + EXERCISE -->
+    <div class="chart-card">
+      <div class="chart-head"><h3>Daily Steps</h3><span>Goal 10,000+ · green = hit</span></div>
+      <div class="chart-box" style="height:160px"><canvas id="stepsChart"></canvas></div>
+    </div>
+
+    <div class="two-col">
+      <div class="chart-card" style="margin:0">
+        <div class="chart-head"><h3>Exercise Min</h3><span>daily</span></div>
+        <div class="chart-box sm"><canvas id="exChart"></canvas></div>
+      </div>
+      <div class="chart-card" style="margin:0">
+        <div class="chart-head"><h3>Active Calories</h3><span>kcal</span></div>
+        <div class="chart-box sm"><canvas id="calChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- DETAILED DATA TABLE -->
+    <div class="section-title">Daily Log — <span id="tableRangeLabel"></span></div>
+    <div class="card" style="overflow-x:auto">
+      <table class="stats-table" id="dataTable">
+        <thead>
+          <tr>
+            <th>Date</th><th>Steps</th><th>Sleep</th><th>BP</th>
+            <th>Wt (lb)</th><th>BF%</th><th>R.HR</th><th>Ex Min</th><th>Workout</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- AVERAGES / SUMMARY CARD -->
+    <div class="section-title">Period Summary</div>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px" id="summaryGrid"></div>
+    </div>
+
+  </div><!-- end mainContent -->
+
+  <div class="note">
+    Educational tool, not medical advice. Discuss medication and BP targets with your physician.<br>
+    Data from Apple Health via Google Sheet · refresh pulls live.
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const STORAGE_KEY = "danny_health_sheet_url";
+const FLAG_THRESHOLDS = {
+  systolic: 135, restHR: 65, avgHR: 82, sleep: 5, steps: 5000
+};
+const TARGETS = {
+  systolic: 125, diastolic: 85, bodyFat: 20, waist: 31, steps: 10000, sleep: 7
+};
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let allRows = [];
+let activeRange = 7;
+let charts = {};
+
+// ─── SHEET COLUMNS (0-indexed, matching Weekly Log order) ───────────────────
+const COL = {
+  date:0, day:1, steps:2, flights:3, exMin:4, activeCal:5,
+  workout:6, avgHR:7, restHR:8, bpSys:9, bpDia:10,
+  sleep:11, deepSleep:12, remSleep:13, weight:14, bodyFat:15, waist:16
+};
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    document.getElementById("sheetUrlInput").value = saved;
+    loadSheet(saved);
+  }
+
+  document.getElementById("saveSheetBtn").addEventListener("click", () => {
+    const url = document.getElementById("sheetUrlInput").value.trim();
+    if (!url.startsWith("http")) {
+      showSetupMsg("Please paste a valid URL.", "bad"); return;
+    }
+    const isSheetUrl = url.includes("/spreadsheets/d/") &&
+                       !url.includes("output=csv") &&
+                       !url.includes("tqx=out:csv");
+    if (isSheetUrl) {
+      showSetupMsg("Sheet URL detected — will fetch via gviz query (no Publish step needed).", "good");
+    }
+    localStorage.setItem(STORAGE_KEY, url);
+    loadSheet(url);
+  });
+
+  document.getElementById("refreshBtn").addEventListener("click", () => {
+    const url = localStorage.getItem(STORAGE_KEY);
+    if (url) loadSheet(url, true);
+  });
+
+  document.querySelectorAll(".range-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".range-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      activeRange = parseInt(btn.dataset.range);
+      renderAll();
+    });
+  });
+});
+
+// ─── URL NORMALIZATION ───────────────────────────────────────────────────────
+function normalizeSheetUrl(input) {
+  const s = input.trim();
+  if (s.includes("output=csv") || s.includes("tqx=out:csv")) return s;
+  const m = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (m) {
+    return `https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv&sheet=Weekly%20Log`;
+  }
+  return s;
+}
+
+// ─── LOAD SHEET ──────────────────────────────────────────────────────────────
+async function loadSheet(url, forceRefresh = false) {
+  setStatus("Loading data…");
+  hideError();
+  try {
+    const baseUrl = normalizeSheetUrl(url);
+    const fetchUrl = forceRefresh ? baseUrl + "&_t=" + Date.now() : baseUrl;
+    const resp = await fetch(fetchUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    parseCSV(text);
+  } catch (e) {
+    showError("Could not load sheet. Make sure the sheet is shared as \"Anyone with the link can view\", then try again.<br><b>Detail:</b> " + e.message);
+    setStatus("Load failed.");
+  }
+}
+
+// ─── PARSE CSV ───────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split("\n").map(l => l.split(",").map(c => c.replace(/^"|"$/g,"").trim()));
+  const dateRe = /^\d{4}-\d{2}-\d{2}/;
+  const dataLines = lines.filter(r => dateRe.test(r[0]));
+
+  allRows = dataLines.map(r => ({
+    date:   r[COL.date] || "",
+    day:    r[COL.day]  || "",
+    steps:  num(r[COL.steps]),
+    flights:num(r[COL.flights]),
+    exMin:  num(r[COL.exMin]),
+    activeCal:num(r[COL.activeCal]),
+    workout:r[COL.workout] || "",
+    avgHR:  num(r[COL.avgHR]),
+    restHR: num(r[COL.restHR]),
+    bpSys:  num(r[COL.bpSys]),
+    bpDia:  num(r[COL.bpDia]),
+    sleep:  num(r[COL.sleep]),
+    deepSleep:num(r[COL.deepSleep]),
+    remSleep:num(r[COL.remSleep]),
+    weight: num(r[COL.weight]),
+    bodyFat:num(r[COL.bodyFat]),
+    waist:  num(r[COL.waist])
+  })).sort((a,b) => a.date.localeCompare(b.date));
+
+  if (allRows.length === 0) {
+    showError("Sheet loaded but no data rows found. Make sure the Weekly Log tab has rows with dates in YYYY-MM-DD format.");
+    setStatus("No data found.");
+    return;
+  }
+
+  document.getElementById("setupSection").removeAttribute("open");
+  document.getElementById("mainContent").style.display = "";
+  setStatus(`Loaded ${allRows.length} days · last updated ${new Date().toLocaleTimeString()}`);
+  renderAll();
+}
+
+// ─── FILTER BY RANGE ─────────────────────────────────────────────────────────
+function getRows() {
+  if (!activeRange || activeRange === 0) return allRows;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - activeRange);
+  const cutStr = cutoff.toISOString().slice(0,10);
+  return allRows.filter(r => r.date >= cutStr);
+}
+
+// ─── RENDER ALL ──────────────────────────────────────────────────────────────
+function renderAll() {
+  const rows = getRows();
+  if (!rows.length) return;
+
+  const first = rows[0].date, last = rows[rows.length-1].date;
+  const fmtDate = d => { const p = d.split("-"); return `${p[1]}/${p[2]}/${p[0]}`; };
+  document.getElementById("headerRange").textContent = `${fmtDate(first)} – ${fmtDate(last)}`;
+  document.getElementById("tableRangeLabel").textContent = `${fmtDate(first)} – ${fmtDate(last)}`;
+
+  renderKPIs(rows);
+  renderCharts(rows);
+  renderTable(rows);
+  renderSummary(rows);
+}
+
+// ─── KPIs ────────────────────────────────────────────────────────────────────
+function renderKPIs(rows) {
+  const avgSys = avg(rows.map(r=>r.bpSys).filter(Boolean));
+  const avgDia = avg(rows.map(r=>r.bpDia).filter(Boolean));
+  const latestWt = rows.slice().reverse().find(r=>r.weight)?.weight;
+  const latestBF = rows.slice().reverse().find(r=>r.bodyFat)?.bodyFat;
+  const avgRHR   = avg(rows.map(r=>r.restHR).filter(Boolean));
+  const avgSlp   = avg(rows.map(r=>r.sleep).filter(Boolean));
+  const avgSteps = avg(rows.map(r=>r.steps).filter(Boolean));
+  const latestWaist = rows.slice().reverse().find(r=>r.waist)?.waist;
+
+  const bpStatus = avgSys ? (avgSys <= 125 ? "good" : avgSys <= 135 ? "warn" : "bad") : "warn";
+  const wtStatus = latestBF ? (latestBF < 20 ? "good" : latestBF < 25 ? "warn" : "bad") : "warn";
+  const hrStatus = avgRHR  ? (avgRHR < 60  ? "good" : avgRHR < 65  ? "warn" : "bad") : "warn";
+  const slpStatus= avgSlp  ? (avgSlp >= 7  ? "good" : avgSlp >= 6  ? "warn" : "bad") : "warn";
+  const stpStatus= avgSteps? (avgSteps>=10000?"good":avgSteps>=7000?"warn":"bad") : "warn";
+  const bfStatus = latestBF? (latestBF<20?"good":latestBF<25?"warn":"bad") : "warn";
+  const waistStatus=latestWaist?(latestWaist<31?"good":latestWaist<33?"warn":"bad"):"warn";
+
+  const kpis = [
+    { label:"Avg BP", value: avgSys ? `${Math.round(avgSys)}/${Math.round(avgDia)}` : "—",
+      unit:"mmHg", status:bpStatus, sub:`Target ≤ 125/85` },
+    { label:"Weight", value: latestWt ? latestWt.toFixed(1) : "—",
+      unit:"lb", status:wtStatus, sub: latestBF ? `Body fat ${latestBF.toFixed(1)}%` : "No body fat data" },
+    { label:"Resting HR", value: avgRHR ? Math.round(avgRHR) : "—",
+      unit:"bpm", status:hrStatus, sub:`Flag >65 bpm` },
+    { label:"Avg Sleep", value: avgSlp ? avgSlp.toFixed(1) : "—",
+      unit:"hrs", status:slpStatus, sub:`Target ≥ 7 hrs` },
+    { label:"Avg Steps", value: avgSteps ? Math.round(avgSteps).toLocaleString() : "—",
+      unit:"", status:stpStatus, sub:`Goal 10,000/day` },
+    { label:"Waist", value: latestWaist ? latestWaist.toFixed(1) : "—",
+      unit:"in", status:waistStatus, sub:`Goal <31"` },
+    { label:"Body Fat", value: latestBF ? latestBF.toFixed(1) : "—",
+      unit:"%", status:bfStatus, sub:`Goal <20%` },
+    { label:"Ex Minutes", value: avg(rows.map(r=>r.exMin).filter(Boolean)) ? Math.round(avg(rows.map(r=>r.exMin).filter(Boolean))) : "—",
+      unit:"min/day", status:"good", sub:`Daily avg` },
+  ];
+
+  const grid = document.getElementById("kpiGrid");
+  grid.innerHTML = kpis.map(k => `
+    <div class="card">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}<span class="unit"> ${k.unit}</span></div>
+      <span class="pill ${k.status}">${{good:"On track",warn:"Watch",bad:"Action"}[k.status]||"—"}</span>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join("");
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+const gc="#eef0f3", tc="#6b7280";
+const base = (yLabel, min, max) => ({
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{grid:{display:false}, ticks:{color:tc, font:{size:10}, maxTicksLimit:10, maxRotation:0}},
+    y:{grid:{color:gc}, ticks:{color:tc, font:{size:10}},
+       ...(yLabel?{title:{display:true,text:yLabel,color:tc,font:{size:10}}}:{}),
+       ...(min!==undefined?{suggestedMin:min}:{}),
+       ...(max!==undefined?{suggestedMax:max}:{})}
+  }
+});
+
+function renderCharts(rows) {
+  Object.values(charts).forEach(c => { try{c.destroy()}catch(e){} });
+  charts = {};
+
+  const labels = rows.map(r => r.date.slice(5));
+  const spangap = true;
+
+  charts.bp = newChart("bpChart","line",labels,[
+    {label:"Systolic", data:rows.map(r=>r.bpSys||null), borderColor:"#dc2626", tension:.3, pointRadius:3, spanGaps:spangap},
+    {label:"Diastolic", data:rows.map(r=>r.bpDia||null), borderColor:"#2563eb", tension:.3, pointRadius:3, spanGaps:spangap},
+    {label:"Sys target", data:rows.map(()=>125), borderColor:"#dc262650",borderDash:[5,4],pointRadius:0,borderWidth:1.5,spanGaps:true},
+    {label:"Dia target", data:rows.map(()=>85), borderColor:"#2563eb50",borderDash:[5,4],pointRadius:0,borderWidth:1.5,spanGaps:true},
+  ],{...base("mmHg",60),plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:10},filter:i=>!i.text.includes("target")}}}});
+
+  const wtData = rows.map(r=>r.weight||null);
+  const bfData = rows.map(r=>r.bodyFat||null);
+  charts.wt = newChart("wtChart","line",labels,[
+    {label:"Weight (lb)", data:wtData, borderColor:"#16a34a", backgroundColor:"#16a34a15", fill:true, tension:.3, pointRadius:3, spanGaps:spangap, yAxisID:"y"},
+    {label:"Body Fat %", data:bfData, borderColor:"#f59e0b", tension:.3, pointRadius:3, spanGaps:spangap, yAxisID:"y2"},
+  ],{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:10}}}},
+    scales:{
+      x:{grid:{display:false},ticks:{color:tc,font:{size:10},maxTicksLimit:10,maxRotation:0}},
+      y:{grid:{color:gc},ticks:{color:tc,font:{size:10}},title:{display:true,text:"lb",color:tc,font:{size:10}},position:"left"},
+      y2:{ticks:{color:"#f59e0b",font:{size:10}},title:{display:true,text:"%",color:"#f59e0b",font:{size:10}},position:"right",grid:{display:false}}
+    }
+  });
+
+  charts.hr = newChart("hrChart","line",labels,[
+    {data:rows.map(r=>r.restHR||null), borderColor:"#7c3aed", backgroundColor:"#7c3aed20", fill:true, tension:.3, pointRadius:3, spanGaps:spangap},
+    {data:rows.map(()=>65), borderColor:"#dc262650", borderDash:[5,4], pointRadius:0, borderWidth:1.5},
+  ], base("bpm"));
+
+  charts.sleep = newChart("sleepChart","bar",labels,[
+    {data:rows.map(r=>r.sleep||null), backgroundColor:rows.map(r=>r.sleep>=7?"#16a34a":r.sleep>=5?"#d97706":"#dc2626")},
+  ], base("hrs"));
+
+  charts.steps = newChart("stepsChart","bar",labels,[
+    {data:rows.map(r=>r.steps||null), backgroundColor:rows.map(r=>r.steps>=10000?"#16a34a":r.steps>=5000?"#d97706":"#dc2626")},
+  ], base("steps"));
+
+  charts.ex = newChart("exChart","bar",labels,[
+    {data:rows.map(r=>r.exMin||null), backgroundColor:"#0ea5e9"},
+  ], base("min"));
+
+  charts.cal = newChart("calChart","bar",labels,[
+    {data:rows.map(r=>r.activeCal||null), backgroundColor:"#f97316"},
+  ], base("kcal"));
+}
+
+function newChart(id, type, labels, datasets, options) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return null;
+  return new Chart(ctx, {type, data:{labels,datasets}, options});
+}
+
+// ─── TABLE ───────────────────────────────────────────────────────────────────
+function renderTable(rows) {
+  const tb = document.getElementById("tableBody");
+  const disp = [...rows].reverse();
+  tb.innerHTML = disp.map(r => {
+    const bpStr = r.bpSys ? `${r.bpSys}/${r.bpDia}` : "—";
+    const bpCls = r.bpSys > FLAG_THRESHOLDS.systolic ? "flag-bad" : "";
+    const slpCls = r.sleep && r.sleep < FLAG_THRESHOLDS.sleep ? "flag-bad" : r.sleep && r.sleep < 7 ? "flag-warn" : "";
+    const stpCls = r.steps && r.steps < FLAG_THRESHOLDS.steps ? "flag-warn" : "";
+    return `<tr>
+      <td>${r.date}<br><span style="font-size:11px;color:var(--muted)">${r.day}</span></td>
+      <td class="${stpCls}">${r.steps ? r.steps.toLocaleString() : "—"}</td>
+      <td class="${slpCls}">${r.sleep ? r.sleep.toFixed(1)+"h" : "—"}</td>
+      <td class="${bpCls}">${bpStr}</td>
+      <td>${r.weight ? r.weight.toFixed(1) : "—"}</td>
+      <td>${r.bodyFat ? r.bodyFat.toFixed(1)+"%" : "—"}</td>
+      <td>${r.restHR ? r.restHR : "—"}</td>
+      <td>${r.exMin ? r.exMin : "—"}</td>
+      <td style="font-size:12px">${r.workout || "—"}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ─── SUMMARY ─────────────────────────────────────────────────────────────────
+function renderSummary(rows) {
+  const bpRows = rows.filter(r=>r.bpSys);
+  const sleepRows = rows.filter(r=>r.sleep);
+  const stepRows = rows.filter(r=>r.steps);
+  const wtRows = rows.filter(r=>r.weight);
+  const bfRows = rows.filter(r=>r.bodyFat);
+  const hrRows = rows.filter(r=>r.restHR);
+
+  const maxSys = bpRows.length ? Math.max(...bpRows.map(r=>r.bpSys)) : null;
+  const minSys = bpRows.length ? Math.min(...bpRows.map(r=>r.bpSys)) : null;
+  const daysAbove = bpRows.filter(r=>r.bpSys > TARGETS.systolic).length;
+  const nightsUnder5 = sleepRows.filter(r=>r.sleep < 5).length;
+  const daysHitSteps = stepRows.filter(r=>r.steps >= TARGETS.steps).length;
+  const wtChange = wtRows.length >= 2 ? (wtRows[wtRows.length-1].weight - wtRows[0].weight).toFixed(1) : null;
+  const bfChange = bfRows.length >= 2 ? (bfRows[bfRows.length-1].bodyFat - bfRows[0].bodyFat).toFixed(1) : null;
+  const maxSteps = stepRows.length ? Math.max(...stepRows.map(r=>r.steps)) : null;
+
+  const items = [
+    {label:"Avg BP", value: bpRows.length ? `${Math.round(avg(bpRows.map(r=>r.bpSys)))} / ${Math.round(avg(bpRows.map(r=>r.bpDia)))}` : "—"},
+    {label:"BP peak (sys)", value: maxSys ? `${maxSys} mmHg` : "—"},
+    {label:"BP range (sys)", value: (maxSys&&minSys) ? `${minSys}–${maxSys}` : "—"},
+    {label:"Days BP above target", value: bpRows.length ? `${daysAbove} of ${bpRows.length}` : "—"},
+    {label:"Avg sleep", value: sleepRows.length ? `${avg(sleepRows.map(r=>r.sleep)).toFixed(1)} hrs` : "—"},
+    {label:"Nights <5h sleep", value: sleepRows.length ? `${nightsUnder5}` : "—"},
+    {label:"Avg resting HR", value: hrRows.length ? `${Math.round(avg(hrRows.map(r=>r.restHR)))} bpm` : "—"},
+    {label:"Step goal hit", value: stepRows.length ? `${daysHitSteps} of ${stepRows.length} days` : "—"},
+    {label:"Peak steps", value: maxSteps ? maxSteps.toLocaleString() : "—"},
+    {label:"Weight change", value: wtChange !== null ? `${wtChange > 0 ? "+" : ""}${wtChange} lb` : "—"},
+    {label:"Body fat change", value: bfChange !== null ? `${bfChange > 0 ? "+" : ""}${bfChange}%` : "—"},
+    {label:"Latest waist", value: rows.slice().reverse().find(r=>r.waist)?.waist.toFixed(1)+"\"" || "—"},
+  ];
+
+  document.getElementById("summaryGrid").innerHTML = items.map(i=>
+    `<div><span style="font-size:12px;color:var(--muted)">${i.label}</span><br><b style="font-size:15px">${i.value}</b></div>`
+  ).join("");
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function num(v) { const n = parseFloat(v); return isNaN(n) ? null : n; }
+function avg(arr) { if (!arr.length) return null; return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function setStatus(msg) { document.getElementById("statusMsg").textContent = msg; }
+function showError(msg) { const c=document.getElementById("errorCard"); c.innerHTML=msg; c.style.display=""; }
+function hideError() { document.getElementById("errorCard").style.display="none"; }
+function showSetupMsg(msg, type) {
+  const el = document.getElementById("setupMsg");
+  el.textContent = msg;
+  el.style.color = type==="bad" ? "var(--bad)" : "var(--good)";
+}
+</script>
+</body>
+</html>
