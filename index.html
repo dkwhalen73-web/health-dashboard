@@ -1,4 +1,3 @@
-health-dashboard.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -90,9 +89,10 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.3px}
     </div>
     <div class="chart-card"><div class="chart-head"><h3>Daily Steps</h3><span>Goal 10,000+ · green = hit</span></div><div class="chart-box" style="height:160px"><canvas id="stepsChart"></canvas></div></div>
     <div class="two-col">
+      <div class="chart-card" style="margin:0"><div class="chart-head"><h3>Flights Climbed</h3><span>floors/day</span></div><div class="chart-box sm"><canvas id="flightsChart"></canvas></div></div>
       <div class="chart-card" style="margin:0"><div class="chart-head"><h3>Exercise Min</h3><span>daily</span></div><div class="chart-box sm"><canvas id="exChart"></canvas></div></div>
-      <div class="chart-card" style="margin:0"><div class="chart-head"><h3>Active Calories</h3><span>kcal</span></div><div class="chart-box sm"><canvas id="calChart"></canvas></div></div>
     </div>
+    <div class="chart-card"><div class="chart-head"><h3>Active Calories</h3><span>kcal</span></div><div class="chart-box" style="height:150px"><canvas id="calChart"></canvas></div></div>
     <div class="card" style="margin-top:12px"><div class="summary-grid" id="summaryGrid"></div></div>
   </div>
   <div class="note">Educational tool — not medical advice.<br>Data from Apple Health via Google Sheet · refresh pulls live.</div>
@@ -103,7 +103,6 @@ const CSV_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=ou
 const COL={date:0,day:1,steps:2,flights:3,exMin:4,activeCal:5,workout:6,avgHR:7,restHR:8,bpSys:9,bpDia:10,sleep:11,deepSleep:12,remSleep:13,weight:14,bodyFat:15,waist:16};
 const TARGETS={systolic:125,diastolic:85,bodyFat:20,waist:31,steps:10000,sleep:7};
 let allRows=[],activeRange=7,charts={};
-
 window.addEventListener("DOMContentLoaded",()=>{
   load();
   document.getElementById("refreshBtn").onclick=()=>load(true);
@@ -116,13 +115,12 @@ window.addEventListener("DOMContentLoaded",()=>{
     };
   });
 });
-
 async function load(refresh=false){
   document.getElementById("statusMsg").textContent="Loading data…";
   const url=CSV_URL+(refresh?"&_t="+Date.now():"");
   try{
     const r=await fetch(url);
-    if(!r.ok) throw new Error("HTTP "+r.status);
+    if(!r.ok)throw new Error("HTTP "+r.status);
     parseCSV(await r.text());
   }catch(e){
     const ec=document.getElementById("errorCard");
@@ -131,7 +129,6 @@ async function load(refresh=false){
     document.getElementById("statusMsg").textContent="Load failed.";
   }
 }
-
 function parseCSVLine(line){
   const out=[];let cur="",inQ=false;
   for(let i=0;i<line.length;i++){
@@ -143,7 +140,6 @@ function parseCSVLine(line){
   out.push(cur);
   return out.map(c=>c.trim());
 }
-
 function parseCSV(text){
   const rows=text.replace(/\r/g,"").split("\n").map(parseCSVLine);
   const re=/^\d{4}-\d{2}-\d{2}/;
@@ -160,21 +156,17 @@ function parseCSV(text){
   document.getElementById("statusMsg").textContent=`Loaded ${allRows.length} days · ${new Date().toLocaleTimeString()}`;
   renderAll();
 }
-
 function getRows(){
   if(!activeRange)return allRows;
   const cut=new Date();cut.setDate(cut.getDate()-activeRange);
-  const cs=cut.toISOString().slice(0,10);
-  return allRows.filter(r=>r.date>=cs);
+  return allRows.filter(r=>r.date>=cut.toISOString().slice(0,10));
 }
-
 function renderAll(){
   const rows=getRows();if(!rows.length)return;
   const fmt=d=>{const p=d.split("-");return`${p[1]}/${p[2]}/${p[0]}`;};
   document.getElementById("headerRange").textContent=`${fmt(rows[0].date)} – ${fmt(rows[rows.length-1].date)}`;
   renderKPIs(rows);renderCharts(rows);renderSummary(rows);
 }
-
 function renderKPIs(rows){
   const aS=av(rows.map(r=>r.bpSys).filter(Boolean));
   const aD=av(rows.map(r=>r.bpDia).filter(Boolean));
@@ -183,15 +175,16 @@ function renderKPIs(rows){
   const rhr=av(rows.map(r=>r.restHR).filter(Boolean));
   const slp=av(rows.map(r=>r.sleep).filter(Boolean));
   const stp=av(rows.map(r=>r.steps).filter(Boolean));
-  const wst=rows.slice().reverse().find(r=>r.waist)?.waist;
+  const flt=av(rows.map(r=>r.flights).filter(Boolean));
   const exm=av(rows.map(r=>r.exMin).filter(Boolean));
+  const wst=rows.slice().reverse().find(r=>r.waist)?.waist;
   const kpis=[
     {l:"Avg BP",v:aS?`${Math.round(aS)}/${Math.round(aD)}`:"—",u:"mmHg",s:!aS?"warn":aS<=125?"good":aS<=135?"warn":"bad",sub:"Target ≤ 125/85"},
     {l:"Weight",v:wt?wt.toFixed(1):"—",u:"lb",s:!bf?"warn":bf<20?"good":bf<25?"warn":"bad",sub:bf?`BF ${bf.toFixed(1)}%`:""},
     {l:"Resting HR",v:rhr?Math.round(rhr):"—",u:"bpm",s:!rhr?"warn":rhr<60?"good":rhr<65?"warn":"bad",sub:"Flag >65"},
     {l:"Avg Sleep",v:slp?slp.toFixed(1):"—",u:"hrs",s:!slp?"warn":slp>=7?"good":slp>=6?"warn":"bad",sub:"Target ≥ 7 hrs"},
     {l:"Avg Steps",v:stp?Math.round(stp).toLocaleString():"—",u:"",s:!stp?"warn":stp>=10000?"good":stp>=7000?"warn":"bad",sub:"Goal 10,000/day"},
-    {l:"Waist",v:wst?wst.toFixed(1):"—",u:"in",s:!wst?"warn":wst<31?"good":wst<33?"warn":"bad",sub:'Goal <31"'},
+    {l:"Flights Climbed",v:flt?Math.round(flt):"—",u:"floors/day",s:"good",sub:"Avg daily"},
     {l:"Body Fat",v:bf?bf.toFixed(1):"—",u:"%",s:!bf?"warn":bf<20?"good":bf<25?"warn":"bad",sub:"Goal <20%"},
     {l:"Ex Minutes",v:exm?Math.round(exm):"—",u:"min/day",s:"good",sub:"Daily avg"},
   ];
@@ -200,10 +193,8 @@ function renderKPIs(rows){
     `<div class="card"><div class="kpi-label">${k.l}</div><div class="kpi-value">${k.v}<span class="unit"> ${k.u}</span></div><span class="pill ${k.s}">${lbl[k.s]}</span><div class="kpi-sub">${k.sub}</div></div>`
   ).join("");
 }
-
 const gc="#eef0f3",tc="#6b7280";
 const base=(yL)=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:10},maxTicksLimit:10,maxRotation:0}},y:{grid:{color:gc},ticks:{color:tc,font:{size:10}},title:yL?{display:true,text:yL,color:tc,font:{size:10}}:undefined}}});
-
 function renderCharts(rows){
   Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});charts={};
   const labels=rows.map(r=>r.date.slice(5));
@@ -223,38 +214,36 @@ function renderCharts(rows){
   ],base("bpm"));
   charts.sleep=nc("sleepChart","bar",labels,[{data:rows.map(r=>r.sleep||null),backgroundColor:rows.map(r=>!r.sleep?"#ccc":r.sleep>=7?"#16a34a":r.sleep>=5?"#d97706":"#dc2626")}],base("hrs"));
   charts.steps=nc("stepsChart","bar",labels,[{data:rows.map(r=>r.steps||null),backgroundColor:rows.map(r=>!r.steps?"#ccc":r.steps>=10000?"#16a34a":r.steps>=5000?"#d97706":"#dc2626")}],base("steps"));
+  charts.flights=nc("flightsChart","bar",labels,[{data:rows.map(r=>r.flights||null),backgroundColor:"#8b5cf6"}],base("floors"));
   charts.ex=nc("exChart","bar",labels,[{data:rows.map(r=>r.exMin||null),backgroundColor:"#0ea5e9"}],base("min"));
   charts.cal=nc("calChart","bar",labels,[{data:rows.map(r=>r.activeCal||null),backgroundColor:"#f97316"}],base("kcal"));
 }
-
 function nc(id,type,labels,datasets,options){
   const ctx=document.getElementById(id);
   if(!ctx)return null;
   return new Chart(ctx,{type,data:{labels,datasets},options});
 }
-
 function renderSummary(rows){
-  const bpR=rows.filter(r=>r.bpSys),slpR=rows.filter(r=>r.sleep),stpR=rows.filter(r=>r.steps),wtR=rows.filter(r=>r.weight),bfR=rows.filter(r=>r.bodyFat),hrR=rows.filter(r=>r.restHR);
+  const bpR=rows.filter(r=>r.bpSys),slpR=rows.filter(r=>r.sleep),stpR=rows.filter(r=>r.steps),wtR=rows.filter(r=>r.weight),bfR=rows.filter(r=>r.bodyFat),hrR=rows.filter(r=>r.restHR),fltR=rows.filter(r=>r.flights);
   const maxS=bpR.length?Math.max(...bpR.map(r=>r.bpSys)):null;
   const minS=bpR.length?Math.min(...bpR.map(r=>r.bpSys)):null;
   const items=[
-    {l:"Avg BP",v:bpR.length?`${Math.round(av(bpR.map(r=>r.bpSys)))} / ${Math.round(av(bpR.map(r=>r.bpDia)))}`:"—"},
-    {l:"BP range",v:(maxS&&minS)?`${minS}–${maxS} mmHg`:"—"},
-    {l:"Days BP above target",v:bpR.length?`${bpR.filter(r=>r.bpSys>TARGETS.systolic).length} of ${bpR.length}`:"—"},
-    {l:"Avg sleep",v:slpR.length?av(slpR.map(r=>r.sleep)).toFixed(1)+" hrs":"—"},
-    {l:"Nights <5h sleep",v:slpR.length?`${slpR.filter(r=>r.sleep<5).length}`:"—"},
-    {l:"Avg resting HR",v:hrR.length?Math.round(av(hrR.map(r=>r.restHR)))+" bpm":"—"},
-    {l:"Step goal hit",v:stpR.length?`${stpR.filter(r=>r.steps>=TARGETS.steps).length} of ${stpR.length} days`:"—"},
-    {l:"Peak steps",v:stpR.length?Math.max(...stpR.map(r=>r.steps)).toLocaleString():"—"},
-    {l:"Weight change",v:wtR.length>=2?`${(wtR[wtR.length-1].weight-wtR[0].weight>0?"+":"")}${(wtR[wtR.length-1].weight-wtR[0].weight).toFixed(1)} lb`:"—"},
-    {l:"Body fat change",v:bfR.length>=2?`${(bfR[bfR.length-1].bodyFat-bfR[0].bodyFat>0?"+":"")}${(bfR[bfR.length-1].bodyFat-bfR[0].bodyFat).toFixed(1)}%`:"—"},
-    {l:"Latest weight",v:wtR.length?wtR[wtR.length-1].weight.toFixed(1)+" lb":"—"},
-    {l:"Latest waist",v:rows.slice().reverse().find(r=>r.waist)?rows.slice().reverse().find(r=>r.waist).waist.toFixed(1)+'"':"—"},
+    {l:"Avg BP",v:bpR.length?`${Math.round(av(bpR.map(r=>r.bpSys)))} / ${Math.round(av(bpR.map(r=>r.bpDia)))}`:"-"},
+    {l:"BP range",v:(maxS&&minS)?`${minS}–${maxS} mmHg`:"-"},
+    {l:"Days BP above target",v:bpR.length?`${bpR.filter(r=>r.bpSys>TARGETS.systolic).length} of ${bpR.length}`:"-"},
+    {l:"Avg sleep",v:slpR.length?av(slpR.map(r=>r.sleep)).toFixed(1)+" hrs":"-"},
+    {l:"Nights <5h sleep",v:slpR.length?`${slpR.filter(r=>r.sleep<5).length}`:"-"},
+    {l:"Avg resting HR",v:hrR.length?Math.round(av(hrR.map(r=>r.restHR)))+" bpm":"-"},
+    {l:"Step goal hit",v:stpR.length?`${stpR.filter(r=>r.steps>=TARGETS.steps).length} of ${stpR.length} days`:"-"},
+    {l:"Peak steps",v:stpR.length?Math.max(...stpR.map(r=>r.steps)).toLocaleString():"-"},
+    {l:"Avg flights climbed",v:fltR.length?Math.round(av(fltR.map(r=>r.flights)))+" floors/day":"-"},
+    {l:"Peak flights",v:fltR.length?Math.max(...fltR.map(r=>r.flights))+" floors":"-"},
+    {l:"Weight change",v:wtR.length>=2?`${(wtR[wtR.length-1].weight-wtR[0].weight>0?"+":"")}${(wtR[wtR.length-1].weight-wtR[0].weight).toFixed(1)} lb`:"-"},
+    {l:"Latest waist",v:rows.slice().reverse().find(r=>r.waist)?rows.slice().reverse().find(r=>r.waist).waist.toFixed(1)+'"':"-"},
   ];
   const g=document.getElementById("summaryGrid");
   if(g)g.innerHTML=items.map(i=>`<div><div style="font-size:12px;color:var(--muted)">${i.l}</div><b style="font-size:15px">${i.v}</b></div>`).join("");
 }
-
 function n(v){const x=parseFloat((v||"").replace(/,/g,""));return isNaN(x)?null:x;}
 function av(a){if(!a.length)return null;return a.reduce((s,x)=>s+x,0)/a.length;}
 </script>
